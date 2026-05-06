@@ -1,0 +1,15 @@
+1. Arduino Setup
+bash
+# Install required libraries in Arduino IDE
+- WiFiNINA (for R4 WiFi)
+- ArduinoJSON
+2. Upload Code
+bash
+# Open arduino_code/smart_home_interop.ino
+# Update WiFi credentials
+# Select board: Arduino UNO R4 WiFi
+# Upload to board
+3. Install Python Dependencies
+bash
+pip install -r requirements.txt
+python cloud_backend/server.py

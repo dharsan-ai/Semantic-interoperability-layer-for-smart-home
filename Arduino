@@ -1,0 +1,102 @@
+#include <WiFiS3.h>
+#include <ArduinoJson.h>
+#include <Servo.h>
+
+// WiFi Credentials
+char ssid[] = "YOUR_SSID";
+char pass[] = "YOUR_PASSWORD";
+
+// Pin Definitions
+const int TRIG_PIN = 9;
+const int ECHO_PIN = 10;
+const int IR_PIN = A0;
+const int BUZZER_PIN = 8;
+const int LED_PIN = 7;
+
+Servo myServo;
+int status = WL_IDLE_STATUS;
+WiFiClient client;
+
+// Server details
+const char server[] = "api.thingspeak.com";
+const int port = 80;
+
+void setup() {
+    Serial.begin(9600);
+    
+    // Initialize pins
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+    pinMode(IR_PIN, INPUT);
+    pinMode(BUZZER_PIN, OUTPUT);
+    pinMode(LED_PIN, OUTPUT);
+    
+    myServo.attach(6);
+    
+    // Connect to WiFi
+    while (status != WL_CONNECTED) {
+        status = WiFi.begin(ssid, pass);
+        delay(1000);
+    }
+}
+
+float readUltrasonic() {
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    
+    long duration = pulseIn(ECHO_PIN, HIGH);
+    return duration * 0.034 / 2;
+}
+
+String createSemanticJSON(String deviceType, float value, String unit) {
+    StaticJsonDocument<200> doc;
+    doc["device_id"] = "arduino_01";
+    doc["device_type"] = deviceType;
+    doc["timestamp"] = millis();
+    doc["data"]["value"] = value;
+    doc["data"]["unit"] = unit;
+    
+    String output;
+    serializeJson(doc, output);
+    return output;
+}
+
+void sendToCloud(String data) {
+    if (client.connect(server, port)) {
+        client.print("POST /update HTTP/1.1\r\n");
+        client.print("Host: "); client.print(server); client.print("\r\n");
+        client.print("Content-Type: application/json\r\n");
+        client.print("Content-Length: "); client.print(data.length()); client.print("\r\n");
+        client.print("\r\n");
+        client.print(data);
+        client.stop();
+    }
+}
+
+void loop() {
+    // Read sensors
+    float distance = readUltrasonic();
+    int irValue = analogRead(IR_PIN);
+    
+    // Create semantic JSON
+    String jsonData = createSemanticJSON("ultrasonic", distance, "cm");
+    
+    // Send to cloud
+    sendToCloud(jsonData);
+    
+    // Control actuators based on readings
+    if (distance < 20) {
+        digitalWrite(BUZZER_PIN, HIGH);
+        digitalWrite(LED_PIN, HIGH);
+        myServo.write(90);
+    } else {
+        digitalWrite(BUZZER_PIN, LOW);
+        digitalWrite(LED_PIN, LOW);
+        myServo.write(0);
+    }
+    
+    delay(2000);
+}
